@@ -1,40 +1,71 @@
 import streamlit as st
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import auth
 
-# Function to handle login
-def login():
-    st.session_state.logged_in = True
-    st.success("Logged in successfully!")
+cred = credentials.Certificate('C:\\Users\\LENOVO\\OneDrive\\Desktop\\Hackathon\\S4PU\\SAPU\\frontend\\yiern\\sapu-511dd-477b990ba23b.json')
+#firebase_admin.initialize_app(cred)
 
-# Function to handle sign-up
-def sign_up():
-    st.session_state.signed_up = True
-    st.success("Signed up successfully!")
-
-# Function to display the login page
-def display_login_page():
-    st.title("Login Page")
-
-    # Initialize session state variables
-    if 'logged_in' not in st.session_state:
-        st.session_state.logged_in = False
-    if 'signed_up' not in st.session_state:
-        st.session_state.signed_up = False
-
-    # Login form
-    with st.form(key='login_form'):
-        email = st.text_input("Email:")
-        password = st.text_input("Password:", type='password')
-        login_button = st.form_submit_button("Login")
-        sign_up_button = st.form_submit_button("Sign Up")
-
-    # Handle login and sign-up buttons
-    if login_button:
-        login()
-    if sign_up_button:
-        sign_up()
-
-    # Display content based on login/sign-up status
-    if st.session_state.logged_in:
-        st.write("Welcome! You are logged in.")
-    if st.session_state.signed_up:
-        st.write("Welcome! You have signed up.")
+def app():
+    st.title('Welcome to :blue[SAPU]')
+    
+    
+    
+    if 'username' not in st.session_state:
+        st.session_state.username = ''
+    if 'useremail' not in st.session_state:
+        st.session_state.useremail = ''
+        
+        
+        
+    def f() :
+        try : 
+            user = auth.get_user_by_email(email)
+            #print (user.uid)
+            
+            st.write('Login successfully')
+            st.session_state.username = user.uid
+            st.session_state.useremail = user.email
+            st.session_state.signedout = True
+            st.session_state.signout = True
+            
+            
+        except :
+            st.warning('Login failed')
+            
+    def t () :
+        st.session_state.signedout= False
+        st.session_state.signout = False
+        st.session_state.username = ''
+            
+    if 'signedout' not in st.session_state :
+        st.session_state.signedout = False
+    if 'signout'not in st.session_state :
+        st.session_state.signout = False
+        
+    if not st.session_state ['signedout'] :
+        choice = st.selectbox('Login/Signup',['Login','Sign up'])
+        if choice =='Login':
+            email=st.text_input('Email Address (use your siswamail)')
+            password=st.text_input('Password',type='password')
+            st.button('Login',on_click=f)
+        else :
+            email=st.text_input('Email Address (use your siswamail)')
+            password=st.text_input('Password',type='password')
+            username = st.text_input('Enter your username')
+        
+            if st.button('Create my account') :
+                if email.endswith('@siswa.um.edu.my') :
+                    user = auth.create_user(email = email,password=password, uid=username)
+                    st.success('Account created successfully')
+                    st.markdown('Please login using your email and password')
+                    st.balloons()
+            
+                else :
+                    st.warning('Please use your siswamail')
+    if st.session_state.signout :
+        st.text ('Name: '+st.session_state.username)
+        st.text ('Email: '+ st.session_state.useremail)
+        st.button('Sign out', on_click = t)
+                
+    
