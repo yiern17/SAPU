@@ -3,6 +3,7 @@ import folium
 from streamlit_folium import st_folium
 from geopy.geocoders import Nominatim
 import random
+from streamlit_option_menu import option_menu
 
 
 # Initialize session state for bookings and driver status
@@ -14,7 +15,7 @@ if 'bookings' not in st.session_state:
 
 # Homepage
 def home():
-    st.title("Welcome to SAPU Service")
+    st.title('Welcome to SAPU')
     st.subheader("Your transportation service app.")
     st.write("Choose a service from the menu on the left.")
 
@@ -192,8 +193,18 @@ def driver_registration():
 # Main function for Streamlit navigation
 def main():
     # Sidebar for navigation
-    st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Home", "Booking", "Real-Time Tracking", "Campus Map", "Driver Registration"])
+    with st.sidebar :
+            page = option_menu(
+                menu_title='SAPU',
+                options= ['Home', 'Booking', 'Real-Time Tracking', 'Campus Map','Driver Registration'],
+                icons = ['house-fill','car-front-fill','bus-front-fill','map-fill','person-raised-hand'],
+                default_index=1 ,
+                styles={
+                    "container": {"padding": "5!important","background-color": 'white'}, 
+                "nav-link": {"color": "grey","font-size": "20px", "text-align": "left", "margin": "0px"},
+                "nav-link-selected": {"background-color": "#230de0"}}
+            )
+
 
     if page == "Home":
         home()
