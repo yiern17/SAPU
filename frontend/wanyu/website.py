@@ -13,6 +13,17 @@ if 'is_driver' not in st.session_state:
 if 'bookings' not in st.session_state:
     st.session_state.bookings = []  # Initialize empty list for bookings
 
+BUS_ROUTES = {
+    "AB": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
+    "BA": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
+    "C": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
+    "D": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
+    "E": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
+    "KK13": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
+}
+
+
+
 # Homepage
 def home():
     st.title('Welcome to SAPU')
@@ -33,7 +44,7 @@ def campus_map():
     
     # Embed the campus map using iframe if available
     iframe_code = '''
-    <iframe src="https://www.um.edu.my/campus-map" width="800" height="600" frameborder="0" style="border:0" allowfullscreen></iframe>
+    <iframe src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d3983.897036290883!2d101.656994!3d3.121927!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x31cdb47024217187%3A0x1e85ebc65d47d641!2sUniversity%20of%20Malaya!5e0!3m2!1sen!2smy!4v1732729152662!5m2!1sen!2smy" width="800" height="600" frameborder="0" style="border:0" allowfullscreen></iframe>
     '''
     st.components.v1.html(iframe_code, height=600)
 
@@ -93,31 +104,73 @@ def booking():
             }
             st.session_state.bookings.append(new_booking)
             st.success(f"Booking confirmed! Waiting for driver...")
+            
+            # Real-Time Tracking
+            
+            st.title("Real-Time Tracking")
+            status = st.radio("Vehicle Status", ["In Progress", "Arrived", "On the Way"])
+            eta = st.text_input("Estimated Time of Arrival", "15 minutes")
+            location = st.text_input("Vehicle Location", "Latitude: 3.1219, Longitude: 101.657")
+
+                # Create a map for real-time tracking
+            map_center = [3.1219, 101.657]  # Default to UM
+            m = folium.Map(location=map_center, zoom_start=12)
+
+                # Display the vehicle location on the map (this can be dynamically updated)
+            vehicle_location = [37.7749, -122.4194]  # Example location, replace with actual data
+            folium.Marker(vehicle_location, popup="Vehicle Location", icon=folium.Icon(color='blue')).add_to(m)
+    
+            st_folium(m, width=700, height=500)
+
+                # Display the status, ETA, and vehicle location
+            st.write(f"Status: {status}")
+            st.write(f"ETA: {eta}")
+            st.write(f"Location: {location}")
+
         else:
             st.error("Please fill in all sections.")
 
-# Real-Time Tracking
-def tracking():
-    st.title("Real-Time Tracking")
-    status = st.radio("Vehicle Status", ["In Progress", "Arrived", "On the Way"])
-    eta = st.text_input("Estimated Time of Arrival", "15 minutes")
-    location = st.text_input("Vehicle Location", "Latitude: 37.7749, Longitude: -122.4194")
+def display_timetable (route):
+    if route in BUS_ROUTES:
+        schedule = BUS_ROUTES[route]["schedule"]
+        st.write (f"Bus schedule for route {route}:")
+        for time in schedule:
+            st.write(f"- {time}")
+    else :
+        st.error("Invalid route.Please try again. ")
 
-    # Create a map for real-time tracking
-    map_center = [37.7749, -122.4194]  # Default to San Francisco
-    m = folium.Map(location=map_center, zoom_start=12)
+def display_live_location(route): 
+    if route in BUS_ROUTES: 
+        live_location = BUS_ROUTES[route]["live_location"]
+        st.write(f"Live location of bus on route {route}:")
+        st.write(f"Latitude: {live_location[0]}, Longitude: {live_location[1]}")
+        # Create a map with the live location
+        m = folium.Map(location=live_location, zoom_start=15)
+        folium.Marker(live_location, popup=f"Bus on Route {route}").add_to(m)
+        st_folium(m, width=700, height=500)
+    else:
+        st.error("Invalid route. Please try again.")
 
-    # Display the vehicle location on the map (this can be dynamically updated)
-    vehicle_location = [37.7749, -122.4194]  # Example location, replace with actual data
-    folium.Marker(vehicle_location, popup="Vehicle Location", icon=folium.Icon(color='blue')).add_to(m)
+
+def bus() :
+    st.title("Bus Information")
+
+    # Display available bus routes
+    st.write("Available Bus Routes:")
+    for route in BUS_ROUTES.keys():
+        st.write(f"- {route}")
+
+    # User input for selecting a bus route
+    route = st.selectbox("Select a bus route:", list(BUS_ROUTES.keys()))
+
+    # Display the timetable for the selected route
+    display_timetable(route)
+
+    # Display the live location of the selected route
+    display_live_location(route)
     
-    st_folium(m, width=700, height=500)
-
-    # Display the status, ETA, and vehicle location
-    st.write(f"Status: {status}")
-    st.write(f"ETA: {eta}")
-    st.write(f"Location: {location}")
-
+    
+    
 # Sidebar for driver registration
 def driver_registration():
     st.title("Driver Registration")
@@ -196,7 +249,7 @@ def main():
     with st.sidebar :
             page = option_menu(
                 menu_title='SAPU',
-                options= ['Home', 'Booking', 'Real-Time Tracking', 'Campus Map','Driver Registration'],
+                options= ['Home', 'Booking', 'Bus', 'Campus Map','Driver Registration'],
                 icons = ['house-fill','car-front-fill','bus-front-fill','map-fill','person-raised-hand'],
                 default_index=1 ,
                 styles={
@@ -210,8 +263,8 @@ def main():
         home()
     elif page == "Booking":
         booking()
-    elif page == "Real-Time Tracking":
-        tracking()
+    elif page == "Bus":
+        bus()
     elif page == "Campus Map":
         campus_map()
     elif page == "Driver Registration":
