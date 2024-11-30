@@ -4,7 +4,17 @@ from streamlit_folium import st_folium
 from geopy.geocoders import Nominatim
 import random
 from streamlit_option_menu import option_menu
+import requests
+import logging
+from datetime import datetime
+import json
+import osmnx as ox
+import networkx as nx
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
+BASE_URL = "http://127.0.0.1:8000"  # FastAPI server address
 
 # Initialize session state for bookings and driver status
 if 'is_driver' not in st.session_state:
@@ -14,29 +24,137 @@ if 'bookings' not in st.session_state:
     st.session_state.bookings = []  # Initialize empty list for bookings
 
 BUS_ROUTES = {
-    "AB": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
-    "BA": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
-    "C": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
-    "D": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
-    "E": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
-    "KK13": {"schedule": ["08:00","09:00"],"live_location":[3.1201,101.6544]},
+    "AB": {"schedule": ["07:30","07:50","08:10","08:30","09:10","09:30","10:30","11:00","11:30","12:00","13:30","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00"],"live_location":[3.1201,101.6544]},
+    "BA": {"schedule": ["07:30","07:50","08:10","08:30","09:10","09:30","10:30","11:00","11:30","12:00","13:30","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00"],"live_location":[3.1201,101.6544]},
+    "C": {"schedule": ["07:30","08:00","08:30","09:00","09:30","10:30","11:00","11:30","12:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00"],"live_location":[3.1201,101.6544]},
+    "D": {"schedule": ["07:30","08:00","08:30","09:00","09:30","10:30","11:00","11:30","12:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00"],"live_location":[3.1201,101.6544]},
+    "E": {"schedule": ["07:30","08:00","08:30","09:00","09:30","10:30","11:00","11:30","12:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00"],"live_location":[3.1201,101.6544]},
+    
 }
 
 
+# Register Function
+def register_user(username, password, full_name):
+    url = f"{BASE_URL}/register/user/"
+    payload = {
+        "username": username,
+        "password": password,
+        "full_name": full_name,
+    }
+    logging.info(f"Sending POST request to {url} with payload: {payload}")
+    response = requests.post(url, json=payload)
+    logging.info(f"Registration response: {response.json()}")
+    return response.json()
 
+# driver registration function
+def register_driver(token, full_name, license_number, vehicle_model, vehicle_number, contact_number): 
+    url = f"{BASE_URL}/register/driver/" 
+    payload = { 
+               "full_name": full_name, 
+               "license_number": license_number, 
+               "vehicle_model": vehicle_model, 
+               "vehicle_number": vehicle_number, 
+               "contact_number": contact_number, } 
+    headers = {
+        "Authorization": f"Bearer {token}"
+        } 
+    response = requests.post(url, json=payload, headers=headers) 
+    logging.info(f"Driver registration response: {response.json()}") 
+    return response.json()
+
+
+# Login Function
+def login_user(username, password):
+    url = f"{BASE_URL}/token/"
+    payload = {
+        "username": username,
+        "password": password,
+    }
+    response = requests.post(url, data=payload)
+    return response.json()
 # Homepage
 def home():
     st.title('Welcome to SAPU')
     st.subheader("Your transportation service app.")
-    st.write("Choose a service from the menu on the left.")
+    
+    # Display greeting if user is logged in 
+    if 'username' in st.session_state: 
+        st.write(f"Hi {st.session_state['username']}!") 
+        st.write("Choose a service from the menu on the left.")
+    else :
+        
+        # Register form
+        with st.form(key='register_form'):
+            st.header("Register")
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            full_name = st.text_input("Full Name")
+            register_button = st.form_submit_button("Register")
+            
+            if register_button:
+                if username and password and full_name:
+                    response = register_user(username, password, full_name)
+                    if 'message' in response:
+                        st.success(response["message"])
+                    else:
+                        st.error("Registration failed. Please try again.")
+                else:
+                    st.error("Please fill all fields.")
 
+        # Login form
+        with st.form(key='login_form'):
+            st.header("Login")
+            username = st.text_input("Username", key='login_username')
+            password = st.text_input("Password", type="password", key='login_password')
+            login_button = st.form_submit_button("Login")
+            
+            if login_button:
+                if username and password:
+                    response = login_user(username, password)
+                    if 'access_token' in response:
+                        st.success("Login successful!")
+                        st.session_state.token = response['access_token']
+                        st.session_state.username = username
+                        
+                    else:
+                        st.error("Login failed. Please check your credentials.")
+                else:
+                    st.error("Please fill all fields.")
+
+    
+
+    
+
+# Function to get coordinates from an address
 def get_coordinates(address):
     geolocator = Nominatim(user_agent="saputracker")
     location = geolocator.geocode(address)
     if location:
         return location.latitude, location.longitude
     else:
-        return None, None
+        return None,None
+
+# Function to calculate driving distance using OSM data
+def calculate_driving_distance(pickup, dropoff):
+    pickup_lat, pickup_lon = get_coordinates(pickup)
+    dropoff_lat, dropoff_lon = get_coordinates(dropoff)
+
+    if pickup_lat is None or dropoff_lat is None:
+        st.error("One or both locations not found. Please enter valid addresses.")
+        return None
+
+    # Download the street network for the area around the pickup point
+    G = ox.graph_from_point((pickup_lat, pickup_lon), dist=5000, network_type='drive')
+
+    # Find the nearest nodes in the graph to the pickup and dropoff locations
+    pickup_node = ox.distance.nearest_nodes(G, X=pickup_lon, Y=pickup_lat)
+    dropoff_node = ox.distance.nearest_nodes(G, X=dropoff_lon, Y=dropoff_lat)
+
+    # Calculate the shortest path distance in meters
+    route_length = nx.shortest_path_length(G, pickup_node, dropoff_node, weight='length')
+    distance_km = route_length / 1000  # Convert meters to kilometers
+
+    return distance_km
 
 # Campus Map (UM Map)
 def campus_map():
@@ -52,6 +170,23 @@ def get_random_coordinates():
     lat_range = (3.0, 3.5)
     lon_range = (101.5, 102.0)
     return (random.uniform(*lat_range), random.uniform(*lon_range))
+
+
+
+
+def book_ride_api(token, pickup_location, destination, pickup_time, passengers):
+    url = f"{BASE_URL}/book_ride/"
+    payload = {
+        "pickup_location": pickup_location,
+        "destination": destination,
+        "pickup_time": pickup_time.isoformat(),  # Convert datetime to ISO format
+        "passengers": passengers
+    }
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.post(url, json=payload, headers=headers)
+    return response.json()
+
+
 
 # Booking Interface (SAPU)
 def booking():
@@ -88,47 +223,32 @@ def booking():
             dropoff_lat,dropoff_lon = get_random_coordinates()
 
     m.location = [pickup_lat if pickup_lat else map_center[0], pickup_lon if pickup_lon else map_center[1]]
-
-
     st_folium(m, width=700, height=500)
+
 
     if st.button("Confirm Booking"):
         if pickup and dropoff and date and ride_time and passengers:
-            # Add booking to session state
+            # Calculate driving distance and price
+            distance_km = calculate_driving_distance(pickup,dropoff)
+            base_price = 5  # Base fee in dollars
+            price_per_km = 1  # Price per kilometer
+            total_price = base_price + (price_per_km * distance_km)
+            st.write(f"The total distance is: {distance_km:.2f} km")
+
             new_booking = {
                 'pickup_location': pickup,
                 'destination': dropoff,
                 'pickup_time': str(ride_time),
-                'price': 20 * passengers,  # Example price logic based on passengers
+                'distance_km': round(distance_km,2),
+                'price': round(total_price,2),
                 'status': 'Pending'
+                
             }
             st.session_state.bookings.append(new_booking)
-            st.success(f"Booking confirmed! Waiting for driver...")
-            
-            # Real-Time Tracking
-            
-            st.title("Real-Time Tracking")
-            status = st.radio("Vehicle Status", ["In Progress", "Arrived", "On the Way"])
-            eta = st.text_input("Estimated Time of Arrival", "15 minutes")
-            location = st.text_input("Vehicle Location", "Latitude: 3.1219, Longitude: 101.657")
-
-                # Create a map for real-time tracking
-            map_center = [3.1219, 101.657]  # Default to UM
-            m = folium.Map(location=map_center, zoom_start=12)
-
-                # Display the vehicle location on the map (this can be dynamically updated)
-            vehicle_location = [37.7749, -122.4194]  # Example location, replace with actual data
-            folium.Marker(vehicle_location, popup="Vehicle Location", icon=folium.Icon(color='blue')).add_to(m)
-    
-            st_folium(m, width=700, height=500)
-
-                # Display the status, ETA, and vehicle location
-            st.write(f"Status: {status}")
-            st.write(f"ETA: {eta}")
-            st.write(f"Location: {location}")
-
+            st.success(f"Booking confirmed! Total price: ${total_price:.2f}. Waiting for driver...")
         else:
             st.error("Please fill in all sections.")
+
 
 def display_timetable (route):
     if route in BUS_ROUTES:
@@ -181,19 +301,18 @@ def driver_registration():
     vehicle_model = st.text_input("Enter your vehicle model:")
     vehicle_number = st.text_input("Enter your vehicle number:")
     contact_number = st.text_input("Enter your contact number:")
-    uploaded_image = st.file_uploader("Upload your profile picture", type=["jpg", "jpeg", "png"])
+    
 
     # Register button
     register_button = st.button("Register as Driver")
 
     # Handle registration logic
     if register_button:
-        if driver_name and license_number and vehicle_model and vehicle_number and contact_number and uploaded_image:
+        if driver_name and license_number and vehicle_model and vehicle_number and contact_number :
             st.session_state.is_driver = True  # Mark the user as a driver
             st.success("Driver registered successfully!")
             
-            # Display the uploaded image
-            st.image(uploaded_image, caption="Profile Picture", use_container_width=True)
+            
 
             st.write(f"Driver Name: {driver_name}")
             st.write(f"License Number: {license_number}")
@@ -201,7 +320,7 @@ def driver_registration():
             st.write(f"Vehicle Number: {vehicle_number}")
             st.write(f"Contact Number: {contact_number}")
         else:
-            st.error("Please fill all the fields and upload a picture!")
+            st.error("Please fill all the fields!")
 
     # Show Driver's Only Interface
     if st.session_state.is_driver:
@@ -242,6 +361,7 @@ def driver_registration():
         # Non-driver view (e.g., user hasn't registered yet)
         st.title("Welcome to the App")
         st.write("Please register as a driver to access the driver dashboard.")
+
 
 # Main function for Streamlit navigation
 def main():
