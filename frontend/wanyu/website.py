@@ -230,8 +230,8 @@ def booking():
         if pickup and dropoff and date and ride_time and passengers:
             # Calculate driving distance and price
             distance_km = calculate_driving_distance(pickup,dropoff)
-            base_price = 5  # Base fee in dollars
-            price_per_km = 1  # Price per kilometer
+            base_price = 1  # Base fee in dollars
+            price_per_km = 0.5  # Price per kilometer
             total_price = base_price + (price_per_km * distance_km)
             st.write(f"The total distance is: {distance_km:.2f} km")
 
@@ -245,7 +245,7 @@ def booking():
                 
             }
             st.session_state.bookings.append(new_booking)
-            st.success(f"Booking confirmed! Total price: ${total_price:.2f}. Waiting for driver...")
+            st.success(f"Booking confirmed! Total price: RM{total_price:.2f}. Waiting for driver...")
         else:
             st.error("Please fill in all sections.")
 
@@ -336,7 +336,7 @@ def driver_registration():
                 st.write(f"Booking #{idx + 1}:")
                 st.write(f"Pickup: {booking['pickup_location']}")
                 st.write(f"Destination: {booking['destination']}")
-                st.write(f"Price: ${booking['price']}")
+                st.write(f"Price: RM {booking['price']}")
                 st.write(f"Pick-up Time: {booking['pickup_time']}")
                 
                 # Action buttons for accepting or rejecting bookings
